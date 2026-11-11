@@ -1,0 +1,142 @@
+services:
+
+  postgres-products:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: products_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - products-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d products_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - tienda-net
+
+  postgres-customers:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: customers_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - customers-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d customers_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - tienda-net
+
+  postgres-inventory:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: inventory_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - inventory-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d inventory_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - tienda-net
+
+  postgres-sales:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: sales_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - sales-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d sales_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - tienda-net
+
+  product-service:
+    build: ./product-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-products:5432/products_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      postgres-products:
+        condition: service_healthy
+    networks:
+      - tienda-net
+
+  customer-service:
+    build: ./customer-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-customers:5432/customers_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      postgres-customers:
+        condition: service_healthy
+    networks:
+      - tienda-net
+
+  inventory-service:
+    build: ./inventory-service
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-inventory:5432/inventory_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      PRODUCT_SERVICE_URL: http://product-service:8081
+    depends_on:
+      postgres-inventory:
+        condition: service_healthy
+      product-service:
+        condition: service_started
+    networks:
+      - tienda-net
+
+  sales-service:
+    build: ./sales-service
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-sales:5432/sales_db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      CUSTOMER_SERVICE_URL: http://customer-service:8082
+      PRODUCT_SERVICE_URL: http://product-service:8081
+      INVENTORY_SERVICE_URL: http://inventory-service:8083
+    depends_on:
+      postgres-sales:
+        condition: service_healthy
+      customer-service:
+        condition: service_started
+      product-service:
+        condition: service_started
+      inventory-service:
+        condition: service_started
+    networks:
+      - tienda-net
+
+volumes:
+  products-data:
+  customers-data:
+  inventory-data:
+  sales-data:
+
+networks:
+  tienda-net:
